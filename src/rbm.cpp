@@ -1,5 +1,6 @@
 #include <iostream>
 #include "rbm.hpp"
+#include "mnist.hpp"
 
 using namespace std;
 
@@ -32,4 +33,12 @@ int main(int argc, char * argv[])
   rbm.reconstruct<10>(v3, v2);
   dump(v3);
   cout << v3 << endl;
+
+  mnist::Data trainSet(mnist::TrainingSet, "/saiko/data/digits");
+  if(!trainSet.load())
+  {
+    cout << "Cannot load training set!" << endl;
+    return 1;
+  }
+  return 0;
 }

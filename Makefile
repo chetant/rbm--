@@ -2,7 +2,7 @@ CC=gcc
 CXX=g++
 CFLAGS=-fopenmp
 CXXFLAGS=-I/home/saiko/c++/armadillo-2.4.2/include
-LDFLAGS=-fopenmp -lgomp -llapack -lblas -L/home/saiko/c++/armadillo-2.4.2 -larmadillo -lboost_iostreams -lboost_filesystem -lboost_system -lstdc++ 
+LDFLAGS=-fopenmp -lgomp -llapack -lblas -L/home/saiko/c++/armadillo-2.4.2 -larmadillo -lboost_serialization -lboost_iostreams -lboost_filesystem -lboost_system -lstdc++ 
 
 all: bin/rbm
 
