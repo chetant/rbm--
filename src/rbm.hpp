@@ -6,6 +6,7 @@
 #include <armadillo>
 
 #define Matrix arma::mat::fixed
+#define UMatrix arma::umat::fixed
 #define Vector arma::vec::fixed
 #define RVector arma::rowvec::fixed
 #define Cube arma::cube::fixed

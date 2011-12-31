@@ -553,7 +553,6 @@ class Gnuplot
                         const unsigned int iHeight,
                         const std::string &title = "");
 
-
     //--------------------------------------------------------------------------
     ///\brief replot repeats the last plot or splot command.
     ///  this can be useful for viewing a plot with different set options,
@@ -1641,7 +1640,6 @@ Gnuplot& Gnuplot::plot_image(const unsigned char * ucPicBuf,
 
     return *this;
 }
-
 
 
 //------------------------------------------------------------------------------
