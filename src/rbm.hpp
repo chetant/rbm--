@@ -4,6 +4,9 @@
 #include <iostream>
 #include <cmath>
 #include <armadillo>
+#include <boost/filesystem.hpp>
+
+using boost::filesystem::path;
 
 #define Matrix arma::mat::fixed
 #define UMatrix arma::umat::fixed
@@ -96,6 +99,8 @@ public:
     learnRate = lRate;
   }
 
+  RBM(const path& filename) { load(filename); }
+
   template<int n>
   void trainBatch(Matrix<n, numVisible>& batch)
   {
@@ -177,6 +182,33 @@ public:
     getVPsGivenHs<n>(pvs, hs);
     sampleSig<n, numVisible>(vs, pvs);
     newv = arma::sum(vs) / n;
+  }
+
+  bool save(const path& filename)
+  {
+    std::ofstream outf(filename.c_str(), std::ios_base::out | std::ios_base::binary);
+    weights.save(outf);
+    visBias.save(outf);
+    hidBias.save(outf);
+
+    outf.write((char *)&cdn, sizeof(int));
+    outf.write((char *)&numSamples, sizeof(int));
+    outf.write((char *)&learnRate, sizeof(double));
+    return true;
+  }
+
+  bool load(const path& filename)
+  {
+    std::ifstream inf(filename.c_str(), std::ios_base::in | std::ios_base::binary);
+    weights.load(inf);
+    visBias.load(inf);
+    hidBias.load(inf);
+
+    inf.read((char *)&cdn, sizeof(int));
+    inf.read((char *)&numSamples, sizeof(int));
+    inf.read((char *)&learnRate, sizeof(double));
+
+    weightsT = weights.t();
   }
 
   int getCdN() { return cdn; }

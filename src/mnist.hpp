@@ -39,7 +39,7 @@ namespace mnist
     bool loadImgNLabFile(const path& imgFname, const path& labFname);
 
   public:
-    Data(SetType type, path pth) : rootPath(pth), type(type) {}
+    Data(SetType type, const path& pth) : rootPath(pth), type(type) {}
     bool load();
     void displayImage();
 
