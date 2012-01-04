@@ -15,123 +15,39 @@ const int numBatches = 200; // number of training batches to run
 const int numVisible = 28*28; // number of visual units
 const int numHidden = 100; // number of hidden units
 
-// void dream(RBM<numVisible, numHidden>& rbm)
-// {
-//   // TODO: randomize vs, and perform gibbs sampling, average the last n inputs and plot them
-//   RVector<numVisible> v;
-//   v.randn();
-//   v *= 0.1;
-
-//   Matrix<n, numVisible> buffer;
-
-//   // Fill up buffer
-//   buffer.row(0) = rbm.reconstruct<1>(v);
-//   for(int i = 1; i < n; i++)
-//     buffer.row(i) = rbm.reconstruct<1>(buffer.row(i-1));
-
-//   int currI = 0;
-//   v = sum(buffer);
-// }
-
-static boost::mutex mut;
-
-// void chart(RVector<numVisible>& v)
-// {
-//   Gnuplot plot("image");
-
-//   {  
-//     boost::lock_guard<boost::mutex> lockV(mut);
-//     plot.plot_image(v.memptr(), 28, 28, "Dream sequence");
-//     plot.reset_plot();
-//     sleep(1);
-//   }
-  
-//   sleep(10);
-// }
-
-int dream()
-{
-  const int n = 100;
-  RBM<numVisible, numHidden> rbm("test.rbm");
-
-  RVector<numVisible> rv;
-  RVector<numVisible> v;
-
-  Matrix<n, numVisible> buffer;
-
-  Gnuplot plot("image");
-
-  while(true)
-  {
-    // see low noise
-    v.randn();
-    v *= 0.1;
-
-    // Fill up buffer with what the rbm thinks it sees
-    rbm.reconstruct<1>(rv, v);
-    buffer.row(0) = rv;
-    for(int i = 1; i < n; i++)
-    {
-      v = buffer.row(i-1);
-      rbm.reconstruct<1>(rv, v);
-      buffer.row(i) = rv;
-    }
-
-    v = (255.0/n) * sum(buffer);
-
-    // plot dream
-    plot.plot_image(v.memptr(), 28, 28, "Dream sequence");
-    boost::this_thread::sleep(boost::posix_time::milliseconds(200));
-    plot.reset_plot();
-  }
-  return 0;
-}
-
 // int dream()
 // {
-//   const int n = 10;
+//   const int n = 100;
 //   RBM<numVisible, numHidden> rbm("test.rbm");
 
 //   RVector<numVisible> rv;
 //   RVector<numVisible> v;
-//   v.randn();
-//   v *= 0.1;
 
 //   Matrix<n, numVisible> buffer;
 
-//   // Fill up buffer
-//   rbm.reconstruct<1>(rv, v);
-//   buffer.row(0) = rv;
-//   for(int i = 1; i < n; i++)
-//   {
-//     v = buffer.row(i-1);
-//     rbm.reconstruct<1>(rv, v);
-//     buffer.row(i) = rv;
-//   }
-
-//   v = (255.0/n) * sum(buffer);
-
-//   // boost::unique_lock<boost::mutex> lockV(mut);
-//   // thread drawThread(chart, boost::ref(v));
-//   // sleep(5); lockV.unlock();
-
-//   // drawThread.join();
-  
 //   Gnuplot plot("image");
-//   int currI = 0;
-//   int lastI = n-1;
+
 //   while(true)
 //   {
-//     v = buffer.row(lastI);
+//     // see low noise
+//     v.randn();
+//     v *= 0.1;
+
+//     // Fill up buffer with what the rbm thinks it sees
 //     rbm.reconstruct<1>(rv, v);
-//     buffer.row(currI) = rv;
+//     buffer.row(0) = rv;
+//     for(int i = 1; i < n; i++)
+//     {
+//       v = buffer.row(i-1);
+//       rbm.reconstruct<1>(rv, v);
+//       buffer.row(i) = rv;
+//     }
 
-//     ++currI;  currI %= n;
-//     ++lastI;  lastI %= n;
+//     v = (255.0/n) * sum(buffer);
 
-//     v = sum(buffer);
+//     // plot dream
 //     plot.plot_image(v.memptr(), 28, 28, "Dream sequence");
-//     boost::this_thread::sleep(boost::posix_time::milliseconds(125));
+//     boost::this_thread::sleep(boost::posix_time::milliseconds(200));
 //     plot.reset_plot();
 //   }
 //   return 0;
@@ -145,6 +61,12 @@ int learn()
   rbm.setNumSamples(numSamples);
   rbm.setLearnRate(learnRate);
 
+
+  
+
+  return 0;
+
+
   // Load the MNIST dataset
   mnist::Data trainSet(mnist::TrainingSet, "/saiko/data/digits");
   if(!trainSet.load())
@@ -153,49 +75,42 @@ int learn()
     return 1;
   }
 
-  // Get the batch images
-  Matrix<numTrainExs, numVisible> test;
-  RVector<numVisible> v;
-  int label;
-  double err;
-  for(int i = 0; i < numBatches; ++i)
-  {
-    for(int j = 0; j < numTrainExs;)
-    {
-      if(!trainSet.loadNext<numVisible>(v, label))
-      {
-	cout << "Cannot load image!" << endl;
-	return 1;
-      }
-      if(label != 0)
-	continue;
+  // // Get the batch images
+  // Matrix<numTrainExs, numVisible> test;
+  // RVector<numVisible> v;
+  // int label;
+  // double err;
+  // for(int i = 0; i < numBatches; ++i)
+  // {
+  //   for(int j = 0; j < numTrainExs;)
+  //   {
+  //     if(!trainSet.loadNext<numVisible>(v, label))
+  //     {
+  // 	cout << "Cannot load image!" << endl;
+  // 	return 1;
+  //     }
+  //     if(label != 0)
+  // 	continue;
 
-      test.row(j) = v;
-      ++j;
-    }
-    rbm.trainBatch<numTrainExs>(test, err);
-    cout << "Batch:" << i << ", Error:" << err << endl;
-  }
+  //     test.row(j) = v;
+  //     ++j;
+  //   }
+  //   rbm.trainBatch<numTrainExs>(test, err);
+  //   cout << "Batch:" << i << ", Error:" << err << endl;
+  // }
 
-  rbm.printConfig();
-  rbm.save("test.rbm");
+  // rbm.printConfig();
+  // rbm.save("test.rbm");
 
   // dump2("Final", rbm.getWeights());
   // cout << "Final" << endl;
   // cout << rbm.getWeights() << endl;
-
-  // RVector<3> v2;
-  // v2 << 1 << 1 << 0;
-  // RVector<3> v3;
-  // rbm.reconstruct<10>(v3, v2);
-  // dump(v3);
-  // cout << v3 << endl;
 
   return 0;
 }
 
 int main(int argc, char * argv[])
 {
-  // return learn();
-  return dream();
+  return learn();
+  // return dream();
 }

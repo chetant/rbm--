@@ -42,22 +42,22 @@ namespace mnist
     Data(SetType type, const path& pth) : rootPath(pth), type(type) {}
     bool load();
 
-    template<int numVisible>
-    bool loadNext(RVector<numVisible>& vs, int& label)
-    {
-      if(!imgStream.good())
-      	return false;
-      if(numVisible != dataSize)
-      	return false;
+    // template<int numVisible>
+    // bool loadNext(RVector<numVisible>& vs, int& label)
+    // {
+    //   if(!imgStream.good())
+    //   	return false;
+    //   if(numVisible != dataSize)
+    //   	return false;
 
-      imgStream.read((char *)imgData.get(), dataSize);
-      uint8_t * ptr = imgData.get();
-      for(int i = 0; i < numVisible; ++i)
-      	  vs(i) = *ptr++ / 256.0;
+    //   imgStream.read((char *)imgData.get(), dataSize);
+    //   uint8_t * ptr = imgData.get();
+    //   for(int i = 0; i < numVisible; ++i)
+    //   	  vs(i) = *ptr++ / 256.0;
 
-      label = read8u(labStream);
-      return true;
-    }
+    //   label = read8u(labStream);
+    //   return true;
+    // }
   };
 }
 #endif //_MNIST_H_
