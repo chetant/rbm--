@@ -11,6 +11,7 @@ using boost::filesystem::path;
 #define Matrix arma::mat::fixed
 #define UMatrix arma::umat::fixed
 #define Vector arma::vec::fixed
+#define UVector arma::uvec::fixed
 #define RVector arma::rowvec::fixed
 #define Cube arma::cube::fixed
 #define Span arma::span
@@ -102,7 +103,7 @@ public:
   RBM(const path& filename) { load(filename); }
 
   template<int n>
-  void trainBatch(Matrix<n, numVisible>& batch)
+  void trainBatch(Matrix<n, numVisible>& batch, double& e)
   {
     Matrix<n, numVisible> ovs;
     Matrix<n, numVisible> err;
@@ -164,7 +165,7 @@ public:
       dump(ovs);
       dump(vs);
       dump(err);
-      double e = arma::accu(err % err);
+      e = arma::accu(err % err);
       dumpline(e);
     }
   }

@@ -41,7 +41,6 @@ namespace mnist
   public:
     Data(SetType type, const path& pth) : rootPath(pth), type(type) {}
     bool load();
-    void displayImage();
 
     template<int numVisible>
     bool loadNext(RVector<numVisible>& vs, int& label)

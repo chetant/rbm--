@@ -2,7 +2,6 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/device/file.hpp>
 #include "mnist.hpp"
-#include "gnuplot_i.hpp"
 
 #define htonl(x) (((x)<<24) | (((x)<<8) & 0xFF0000) | (((x)>>8) & 0xFF00) | ((x)>>24))
 
@@ -87,10 +86,9 @@ namespace mnist
     return true;
   }
 
-  void Data::displayImage()
-  {
-    Gnuplot plot("image");
-    plot.plot_image(imgData.get(), numCols, numRows, "MNIST Training Set : 0");
-    sleep(5);
-  }
+  // void Data::displayImage()
+  // {
+  //   Gnuplot plot("image");
+  //   plot.plot_image(imgData.get(), numCols, numRows, "MNIST Training Set : 0");
+  // }
 }

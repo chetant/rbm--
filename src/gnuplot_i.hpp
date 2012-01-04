@@ -548,7 +548,8 @@ class Gnuplot
 
 
     /// plot image
-    Gnuplot& plot_image(const unsigned char *ucPicBuf,
+    template<typename T>
+    Gnuplot& plot_image(const T *ucPicBuf,
                         const unsigned int iWidth,
                         const unsigned int iHeight,
                         const std::string &title = "");
@@ -964,7 +965,7 @@ Gnuplot::~Gnuplot()
 //
 Gnuplot& Gnuplot::reset_plot()
 {
-//  remove_tmpfiles();
+    remove_tmpfiles();
 
     nplots = 0;
 
@@ -1589,7 +1590,8 @@ Gnuplot& Gnuplot::plotfile_xyz(const std::string &filename,
 //
 /// *  note that this function is not valid for versions of GNUPlot below 4.2
 //
-Gnuplot& Gnuplot::plot_image(const unsigned char * ucPicBuf,
+template<typename T>
+Gnuplot& Gnuplot::plot_image(const T * ucPicBuf,
                              const unsigned int iWidth,
                              const unsigned int iHeight,
                              const std::string &title)
