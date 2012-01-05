@@ -65,18 +65,20 @@ public:
   void zeros() { fillMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 0.0); }
   void ones() { fillMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1.0); }
 
-  // assignment with a type T is a fill
-  Matrix<numRows, numCols>& operator =(T val)
-  {
-    fill(val);
-    return *this;
-  }
+  // ops with type T
+  Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
+  Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
+  Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), -val); return *this; }
+  Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
+  Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1/val); return *this; }
 
-  Matrix<numRows, numCols>& operator *=(T val)
-  {
-    mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val);
-    return *this;
-  }
+  // // ops with Matrices
+  // Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
+  // Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
+  // Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), -val); return *this; }
+  // Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
+  // Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1/val); return *this; }
+
 
   //  fill with 0-1 uniform distribution
   void randu()

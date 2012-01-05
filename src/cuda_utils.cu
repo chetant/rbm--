@@ -13,6 +13,14 @@ void kFillMtx(T * ptr, T val)
 
 template<typename T>
 __global__ 
+void kAddMtx(T * ptr, T val)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  ptr[i] += val;
+}
+
+template<typename T>
+__global__ 
 void kMulMtx(T * ptr, T val)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -21,43 +29,15 @@ void kMulMtx(T * ptr, T val)
 
 void fillMtxf(float * ptr, int size, float val)
 {
-  kFillMtx<float> <<<1, 6>>> (ptr, val);
+  kFillMtx<float> <<<1, size>>> (ptr, val);
+}
+
+void addMtxf(float * ptr, int size, float val)
+{
+  kAddMtx<float> <<<1, size>>> (ptr, val);
 }
 
 void mulMtxf(float * ptr, int size, float val)
 {
-  kMulMtx<float> <<<1, 6>>> (ptr, val);
+  kMulMtx<float> <<<1, size>>> (ptr, val);
 }
-
-// __global__ 
-// void kFillMtxf(float * ptr, float val)
-// {
-//   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-//   ptr[i] = val;
-// }
-
-// void test()
-// {
-//   const int N = 6;
-//   float * devPtr;
-//   if(cudaSuccess != cudaMalloc(&devPtr, N*sizeof(float)))
-//   {
-//     std::cerr << "Cannot alloc device memory of size" << N << std::endl;
-//     return;
-//   }
-
-//   float * hostPtr = new float[N];
-//   for(int i = 0; i < N; ++i)
-//     hostPtr[i] = i;
-
-//   kFillMtxf<<< 1, N >>>(devPtr, 42.5);
-
-//   cudaMemcpy(hostPtr, devPtr, N*sizeof(float), cudaMemcpyDeviceToHost);
-
-//   for(int i = 0; i < N; ++i)
-//     cout << hostPtr[i] << '\t';
-//   cout << endl;
-
-//   cudaFree(devPtr);
-//   delete hostPtr;
-// }
