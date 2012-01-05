@@ -1,6 +1,7 @@
 CC=gcc
 CXX=g++
 NVCC=nvcc
+NVCC_GCC_PATH=--compiler-bindir /home/saiko/bin/cuda/gcc
 
 GPERF_CFLAGS=-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 # CFLAGS=-O3
@@ -24,12 +25,12 @@ clean:
 	rm -f obj/*
 	rm -f bin/*
 
-bin/rbm: obj/rbm.o obj/mnist.o
+bin/rbm: obj/rbm.o obj/mnist.o obj/cuda_utils.cu.o
 	$(CXX) -o $@ $^ $(LDFLAGS) 
 
 obj/rbm.o: src/rbm.cpp src/rbm.hpp src/mnist.hpp src/gnuplot_i.hpp src/cuda_utils.hpp
 obj/%.cu.o: src/%.cu src/%.hpp
-	$(NVCC) -c $(CFLAGS) $(NVCCFLAGS) -o $@ $<
+	$(NVCC) -c $(NVCC_GCC_PATH) $(CFLAGS) $(NVCCFLAGS) -o $@ $<
 obj/%.o: src/%.cpp src/%.hpp
 	$(CXX) -c $(CFLAGS) $(CXXFLAGS) -o $@ $<
 

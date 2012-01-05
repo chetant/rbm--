@@ -111,6 +111,12 @@ int learn()
 
 int main(int argc, char * argv[])
 {
-  return learn();
+  // return learn();
   // return dream();
+
+  Matrix<3, 2> testm;
+  // testm.zeros();
+  testm = 51;
+  testm *= 2;
+  testm.print();
 }
