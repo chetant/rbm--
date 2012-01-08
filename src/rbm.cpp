@@ -57,15 +57,11 @@ int learn()
 {
   // Setup RBM
   RBM<numVisible, numHidden> rbm;
-  rbm.setCdN(cdn);
-  rbm.setNumSamples(numSamples);
-  rbm.setLearnRate(learnRate);
-
-
-  
+  // rbm.setCdN(cdn);
+  // rbm.setNumSamples(numSamples);
+  // rbm.setLearnRate(learnRate);
 
   return 0;
-
 
   // Load the MNIST dataset
   mnist::Data trainSet(mnist::TrainingSet, "/saiko/data/digits");
@@ -111,6 +107,14 @@ int learn()
 
 int main(int argc, char * argv[])
 {
+  int numDev = CUDASystem::getNumDevices();
+  cout << "Number of CUDA devices found:" << numDev << endl;
+  for(int i = 0; i < numDev; ++i)
+  {
+    CUDADevice dev = CUDASystem::getDevice(i);
+    printf("Device %d: %s, MP: %d, Compute:%1.1f, WarpSize: %d\n", i, dev.name().c_str(), dev.multiProcs(), dev.computeCaps(), dev.warpSize());
+  }
+
   // return learn();
   // return dream();
 
@@ -119,4 +123,5 @@ int main(int argc, char * argv[])
   testm = 51;
   testm *= 2;
   testm.print();
+
 }

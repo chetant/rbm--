@@ -2,14 +2,69 @@
 #define _CUDA_UTILS_H_
 
 #include <iostream>
+#include <string>
 
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
 
+using std::cerr;
+using std::endl;
+using std::string;
+
 void fillMtxf(float * ptr, int size, float val);
 void mulMtxf(float * ptr, int size, float val);
 
-void test();
+// CUDA init
+class CUDADevice
+{
+  int devId;
+  cudaDeviceProp prop;
+public:
+  CUDADevice(int i = 0) : devId(-1)
+  {
+    if(cudaSuccess != cudaGetDeviceProperties(&prop, i))
+    {
+      cerr << "ERROR: Cannot query CUDA device properties!!" << endl;
+    }
+    devId = i;
+  }
+
+  string name() { return string(prop.name); }
+
+  int multiProcs() { if(devId < 0) return -1; else return prop.multiProcessorCount;}
+  int warpSize() { if(devId < 0) return -1; else return prop.warpSize;}
+  double computeCaps() { if(devId < 0) return -1; else return prop.major + prop.minor/10.0;}
+  bool unifiedAddx() { if(devId < 0) return false; else return prop.unifiedAddressing;}
+};
+
+class CUDASystem
+{
+public:
+  static int getNumDevices()
+  {
+    int n = 0;
+    cudaError_t err = cudaGetDeviceCount(&n);
+    if(cudaErrorNoDevice == err)
+    {
+      cerr << "ERROR: No CUDA compatible device found!!" << endl;
+    }
+    else if(cudaErrorInsufficientDriver == err)
+    {
+      cerr << "ERROR: Driver does not have CUDA support(Hw may support CUDA)!!" << endl;
+    }
+    return n;
+  }
+
+  static CUDADevice getDevice(int i)
+  {
+    return CUDADevice(i);
+  }
+
+  static void setCurrentDevice(const CUDADevice& device)
+  {
+    // TODO: set curr device
+  }
+};
 
 // CUDA device memory ptr
 template <class T>
@@ -52,7 +107,20 @@ public:
   T* ptr() { return ptr_; }
 };
 
-template<int numRows, int numCols, typename T = float>
+template<int numRows, int numCols, typename Get, typename T> class Matrix;
+
+template<int numRows, int numCols, typename T>
+class BaseGetter
+{
+public:
+  __device__
+  static T get(const T* ptr)
+  {
+    return ptr[0];
+  }
+};
+
+template<int numRows, int numCols, typename T = float, typename Get = BaseGetter<numRows, numCols, T> >
 class Matrix
 {
   dev_ptr<T> dptr_; // device mem ptr

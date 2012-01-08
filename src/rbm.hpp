@@ -26,17 +26,50 @@ using boost::filesystem::path;
 #define dumpline(x)
 #define dump2(x, y)
 
-template<int numVisible, int numHidden, int gpuDevice = 0>
+template<int numVisible, int numSamples>
+class BinPVisible
+{
+protected:
+  Matrix<numSamples, numVisible> vs;
+
+  enum { numNodes = numVisible };
+
+public:
+  void sampleVisible(const RVector<numVisible>& v)
+  {
+    // TODO: sample a bunch of vs from v(real valued)
+  }
+};
+
+template<int numHidden, int numSamples, class Lower>
+class BinHidden
+{
+protected:
+  Matrix<Lower::numNodes, numHidden> weights;
+  RVector<Lower::numNodes> visBias;
+  RVector<numHidden> hidBias;
+
+  Matrix<numSamples, numHidden> hs;
+public:
+
+  void bottomUp()
+  {
+  }
+
+  void topDown()
+  {
+  }
+
+};
+
+template<int numVisible, int numHidden, 
+	 int cdn = 10, int numSamples = 100, 
+	 class VisClass = BinPVisible<numVisible, numSamples>, 
+	 class HidClass = BinHidden<numHidden, numSamples, VisClass>
+	 >
 class RBM
 {
 protected:
-  Matrix<numVisible, numHidden> weights;
-  Matrix<numHidden, numVisible> weightsT;
-  RVector<numVisible> visBias;
-  RVector<numHidden> hidBias;
-
-  int cdn;
-  int numSamples;
   double learnRate;
 
   // template<int n, int i>
@@ -87,7 +120,7 @@ protected:
   // }
 
 public:
-  RBM(int nSamples = 10, int cdLearnLoops = 10, double lRate = 0.07, double stdDev = 0.1)
+  RBM(double lRate = 0.07, double stdDev = 0.1)
   {
     // weights.randn();
     // weights *= stdDev;
@@ -95,8 +128,6 @@ public:
     // visBias.zeros();
     // hidBias.zeros();
     
-    cdn = cdLearnLoops;
-    numSamples = nSamples;
     learnRate = lRate;
   }
 
@@ -211,12 +242,6 @@ public:
 
   //   weightsT = weights.t();
   // }
-
-  int getCdN() { return cdn; }
-  void setCdN(int n) { cdn = n; }
-
-  int getNumSamples() { return numSamples; }
-  void setNumSamples(int n) { numSamples = n; }
 
   double getLearnRate() { return learnRate; }
   void setLearnRate(double n) { learnRate = n; }
