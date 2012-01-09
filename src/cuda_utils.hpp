@@ -11,8 +11,14 @@ using std::cerr;
 using std::endl;
 using std::string;
 
+void setupRandStates(curandState * state, int size, int seed);
+void fillRand(float * data, int size, curandState * state);
+
 void fillMtxf(float * ptr, int size, float val);
 void mulMtxf(float * ptr, int size, float val);
+void addMtxf(float * ptr, int size, float val);
+
+void addMtxMtxf(float * toptr, const float * fromptr, int size);
 
 // CUDA init
 class CUDADevice
@@ -35,6 +41,9 @@ public:
   int warpSize() { if(devId < 0) return -1; else return prop.warpSize;}
   double computeCaps() { if(devId < 0) return -1; else return prop.major + prop.minor/10.0;}
   bool unifiedAddx() { if(devId < 0) return false; else return prop.unifiedAddressing;}
+  bool canMapHostMem() { if(devId < 0) return false; else return prop.canMapHostMemory;}
+  int maxThreadsPerMP() { if(devId < 0) return false; else return prop.maxThreadsPerMultiProcessor; } 
+  int maxThreads() { if(devId < 0) return false; else return prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount; }
 };
 
 class CUDASystem
@@ -107,7 +116,13 @@ public:
   T* ptr() { return ptr_; }
 };
 
-template<int numRows, int numCols, typename Get, typename T> class Matrix;
+template<int size>
+class RandState : public dev_ptr<curandState>
+{
+public:
+  explicit RandState(int seed) : dev_ptr<curandState>(size) { setupRandStates(ptr(), size, seed); }
+};
+
 
 template<int numRows, int numCols, typename T>
 class BaseGetter
@@ -129,29 +144,19 @@ public:
   Matrix(T * ptr) { dptr_.set(ptr, numRows * numCols); }
 
   // fill with specific value
-  void fill(T val) { fillMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); }
-  void zeros() { fillMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 0.0); }
-  void ones() { fillMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1.0); }
+  void fill(T val) { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), val); }
+  void zeros() { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), 0.0); }
+  void ones() { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), 1.0); }
+  void randu(RandState<numRows * numCols>& state) { fillRand(dptr_.ptr(), numRows * numCols, state.ptr()); }
 
   // ops with type T
   Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
-  Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
-  Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), -val); return *this; }
-  Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
-  Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1/val); return *this; }
-
-  // // ops with Matrices
-  // Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
-  // Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
-  // Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInBytes(), -val); return *this; }
-  // Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), val); return *this; }
-  // Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInBytes(), 1/val); return *this; }
-
-
-  //  fill with 0-1 uniform distribution
-  void randu()
-  {
-  }
+  Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInType(), val); return *this; }
+  Matrix<numRows, numCols, T>& operator +=(Matrix<numRows, numCols, T>& val)
+  { addMtxMtxf(dptr_.ptr(), val.dptr_.ptr(), dptr_.sizeInType()); return *this; }
+  Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInType(), -val); return *this; }
+  Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInType(), val); return *this; }
+  Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInType(), 1/val); return *this; }
 
   void print()
   {
@@ -167,6 +172,7 @@ public:
     delete hptr;
   }
 
+  T* devPtr() { return dptr_.ptr(); }
 };
 
 template<int numRows, typename T = float>

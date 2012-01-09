@@ -26,46 +26,44 @@ using boost::filesystem::path;
 #define dumpline(x)
 #define dump2(x, y)
 
-template<int numVisible, int numSamples>
+template<int... ns> struct Max;
+template<int n, int... ns> struct Max<n, ns...>
+{ enum { val = n > Max<ns..>::value ? n : Max<ns...>::value }; };
+template<> struct Max<int n>
+{ enum { val = n }; };
+
+template<int numVisible, int numSamples, typename T>
 class BinPVisible
 {
 protected:
-  Matrix<numSamples, numVisible> vs;
-
   enum { numNodes = numVisible };
 
+  Matrix<numSamples, numVisible, T> vs;
+  dev_ptr<curandState> randStates;
 public:
-  void sampleVisible(const RVector<numVisible>& v)
-  {
-    // TODO: sample a bunch of vs from v(real valued)
-  }
+  BinPVisible() : randStates(numSamples * numNodes) {}
 };
 
-template<int numHidden, int numSamples, class Lower>
+template<int numHidden, int numSamples, class Lower, typename T>
 class BinHidden
 {
 protected:
+  enum { numNodes = numHidden };
+
   Matrix<Lower::numNodes, numHidden> weights;
   RVector<Lower::numNodes> visBias;
   RVector<numHidden> hidBias;
 
   Matrix<numSamples, numHidden> hs;
+  dev_ptr<curandState> randStates;
 public:
-
-  void bottomUp()
-  {
-  }
-
-  void topDown()
-  {
-  }
-
+  BinHidden() : randStates(numSamples *numNodes) {}
 };
 
 template<int numVisible, int numHidden, 
 	 int cdn = 10, int numSamples = 100, 
-	 class VisClass = BinPVisible<numVisible, numSamples>, 
-	 class HidClass = BinHidden<numHidden, numSamples, VisClass>
+	 class VisClass = BinPVisible<numVisible, numSamples, float>, 
+	 class HidClass = BinHidden<numHidden, numSamples, VisClass, float>
 	 >
 class RBM
 {

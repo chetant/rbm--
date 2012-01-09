@@ -1,3 +1,4 @@
+#include <ctime>
 #include <iostream>
 #include <boost/thread.hpp>
 #include "rbm.hpp"
@@ -112,16 +113,30 @@ int main(int argc, char * argv[])
   for(int i = 0; i < numDev; ++i)
   {
     CUDADevice dev = CUDASystem::getDevice(i);
-    printf("Device %d: %s, MP: %d, Compute:%1.1f, WarpSize: %d\n", i, dev.name().c_str(), dev.multiProcs(), dev.computeCaps(), dev.warpSize());
+    printf("Device %d: %s\n\tMP: %d, Max Threads/MP:%d, Compute:%1.1f, WarpSize: %d, Unified Addressing:%c, Map Host Mem:%c\n", i, dev.name().c_str(), dev.multiProcs(), dev.maxThreadsPerMP(), dev.computeCaps(), dev.warpSize(), dev.unifiedAddx()?'Y':'N', dev.canMapHostMem()?'Y':'N');
   }
+
+  const int randSize = 3*2;
+  int seed = time(NULL);
+  RandState<randSize> randState(seed);
+  // dev_ptr<curandState> randStates(randSize);
+  // setupRandStates(randStates.ptr(), randStates.sizeInType(), seed);
 
   // return learn();
   // return dream();
 
   Matrix<3, 2> testm;
-  // testm.zeros();
-  testm = 51;
-  testm *= 2;
+  cout << "Init" << endl;
+  testm.zeros();
+  // testm = 51;
+  // testm *= 2;
   testm.print();
-
+  cout << "Rand" << endl;
+  Matrix<3, 2> tempm;
+  for(int i = 0; i < 1000; ++i)
+  {
+    tempm.randu(randState);
+    testm += tempm;
+  }
+  testm.print();
 }
