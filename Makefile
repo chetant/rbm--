@@ -32,6 +32,6 @@ obj/rbm.o: src/rbm.cpp src/rbm.hpp src/mnist.hpp src/gnuplot_i.hpp src/cuda_util
 obj/%.cu.o: src/%.cu src/%.hpp
 	$(NVCC) -c $(NVCC_GCC_PATH) $(CFLAGS) $(NVCCFLAGS) -o $@ $<
 obj/%.o: src/%.cpp src/%.hpp
-	$(CXX) -c $(CFLAGS) $(CXXFLAGS) -o $@ $<
+	$(NVCC) -c --compiler-options -std=c++0x $(NVCC_GCC_PATH) $(CFLAGS) $(NVCCFLAGS) -o $@ $<
 
 .PHONY: all clean

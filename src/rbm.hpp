@@ -26,11 +26,11 @@ using boost::filesystem::path;
 #define dumpline(x)
 #define dump2(x, y)
 
-template<int... ns> struct Max;
-template<int n, int... ns> struct Max<n, ns...>
-{ enum { val = n > Max<ns..>::value ? n : Max<ns...>::value }; };
-template<> struct Max<int n>
-{ enum { val = n }; };
+// template<int... ns> struct Max;
+// template<int n, int... ns> struct Max<n, ns...>
+// { enum { val = n > Max<ns..>::value ? n : Max<ns...>::value }; };
+// template<> struct Max<int n>
+// { enum { val = n }; };
 
 template<int numVisible, int numSamples, typename T>
 class BinPVisible

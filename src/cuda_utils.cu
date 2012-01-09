@@ -29,6 +29,14 @@ void kAddMtxMtx(T * toptr, const T* fromptr)
 
 template<typename T>
 __global__ 
+void kGTMtxMtx(T * toptr, const T* fromptr)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  toptr[i] = toptr[i] > fromptr[i] ? 1 : 0;
+}
+
+template<typename T>
+__global__ 
 void kMulMtx(T * ptr, T val)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -74,7 +82,25 @@ void addMtxMtxf(float * toptr, const float * fromptr, int size)
   kAddMtxMtx<float> <<<1, size>>> (toptr, fromptr);
 }
 
+void gtMtxMtxf(float * toptr, const float * fromptr, int size)
+{
+  kGTMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+}
+
 void mulMtxf(float * ptr, int size, float val)
 {
   kMulMtx<float> <<<1, size>>> (ptr, val);
+}
+
+template<typename T>
+__global__ 
+void kMulMtxMtx(T * toptr, const T* fromptr)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  toptr[i] += fromptr[i];
+}
+
+void mulMtxMtxf(float * toptr, const float * fromptr, int size)
+{
+  kMulMtxMtx<float> <<<1, size>>> (toptr, fromptr);
 }

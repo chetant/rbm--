@@ -6,6 +6,7 @@
 
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
+#include <cublas_v2.h>
 
 using std::cerr;
 using std::endl;
@@ -19,6 +20,8 @@ void mulMtxf(float * ptr, int size, float val);
 void addMtxf(float * ptr, int size, float val);
 
 void addMtxMtxf(float * toptr, const float * fromptr, int size);
+void mulMtxMtxf(float * toptr, const float * fromptr, int size);
+void gtMtxMtxf(float * toptr, const float * fromptr, int size);
 
 // CUDA init
 class CUDADevice
@@ -152,11 +155,14 @@ public:
   // ops with type T
   Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
   Matrix<numRows, numCols, T>& operator +=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInType(), val); return *this; }
-  Matrix<numRows, numCols, T>& operator +=(Matrix<numRows, numCols, T>& val)
-  { addMtxMtxf(dptr_.ptr(), val.dptr_.ptr(), dptr_.sizeInType()); return *this; }
   Matrix<numRows, numCols, T>& operator -=(T val) { addMtxf(dptr_.ptr(), dptr_.sizeInType(), -val); return *this; }
   Matrix<numRows, numCols, T>& operator *=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInType(), val); return *this; }
   Matrix<numRows, numCols, T>& operator /=(T val) { mulMtxf(dptr_.ptr(), dptr_.sizeInType(), 1/val); return *this; }
+
+  Matrix<numRows, numCols, T>& operator +=(Matrix<numRows, numCols, T>& val)
+  { addMtxMtxf(dptr_.ptr(), val.dptr_.ptr(), dptr_.sizeInType()); return *this; }
+  Matrix<numRows, numCols, T>& operator %=(Matrix<numRows, numCols, T>& val)
+  { gtMtxMtxf(dptr_.ptr(), val.dptr_.ptr(), dptr_.sizeInType()); return *this; }
 
   void print()
   {
@@ -183,6 +189,32 @@ class RVector : Matrix<numRows, 1, T>
 template<int numCols, typename T = float>
 class CVector : Matrix<1, numCols, T>
 {
+};
+
+class CuBLAS
+{
+private:
+  CuBLAS(const CuBLAS&);
+  CuBLAS& operator=(const CuBLAS&);
+protected:
+  cublasHandle_t handle;
+public:
+  CuBLAS()
+  {
+    if(CUBLAS_STATUS_SUCCESS != cublasCreate(&handle))
+    {
+      cerr << "ERROR: Cannot init CuBLAS library!" << endl;
+    }
+  }
+  ~CuBLAS() { cublasDestroy(handle); }
+
+  template<int m, int n, int k>
+  void mul(Matrix<m, k>& a, Matrix<k, n>& b, Matrix<m, n>& c)
+  {
+    float ac = 1.0;
+    float bc = 0;
+    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &ac, a.devPtr(), m, b.devPtr(), k, &bc, c.devPtr(), m);
+  }
 };
 
 #endif //_CUDA_UTILS_H_

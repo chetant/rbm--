@@ -116,27 +116,53 @@ int main(int argc, char * argv[])
     printf("Device %d: %s\n\tMP: %d, Max Threads/MP:%d, Compute:%1.1f, WarpSize: %d, Unified Addressing:%c, Map Host Mem:%c\n", i, dev.name().c_str(), dev.multiProcs(), dev.maxThreadsPerMP(), dev.computeCaps(), dev.warpSize(), dev.unifiedAddx()?'Y':'N', dev.canMapHostMem()?'Y':'N');
   }
 
-  const int randSize = 3*2;
-  int seed = time(NULL);
-  RandState<randSize> randState(seed);
-  // dev_ptr<curandState> randStates(randSize);
-  // setupRandStates(randStates.ptr(), randStates.sizeInType(), seed);
+  // const int randSize = 3*2;
+  // int seed = time(NULL);
+  // RandState<randSize> randState(seed);
 
   // return learn();
   // return dream();
 
-  Matrix<3, 2> testm;
-  cout << "Init" << endl;
-  testm.zeros();
-  // testm = 51;
-  // testm *= 2;
-  testm.print();
-  cout << "Rand" << endl;
-  Matrix<3, 2> tempm;
-  for(int i = 0; i < 1000; ++i)
-  {
-    tempm.randu(randState);
-    testm += tempm;
-  }
-  testm.print();
+  // Matrix<3, 2> testm;
+  // cout << "Init" << endl;
+  // testm.ones();
+  // // testm = 51;
+  // // testm *= 2;
+  // testm.print();
+
+  // cout << "Rand:" << endl;
+  // Matrix<3, 2> tempm;
+  // tempm.randu(randState);
+  // testm.randu(randState);
+  // cout << "testm:" << endl;
+  // testm.print();
+  // cout << "tempm:" << endl;
+  // tempm.print();
+  // cout << "GT:" << endl;
+  // testm %= tempm;
+  // testm.print();
+
+  Matrix<3, 2> a;
+  Matrix<2, 4> b;
+  Matrix<3, 4> c;
+
+  int seed = time(NULL);
+  RandState<3*2> ars(seed);
+  RandState<2*4> brs(seed);
+  CuBLAS blas;
+
+  a.randu(ars);
+  cout << "a = " << endl;
+  a.print();
+  cout << endl;
+  
+  b.randu(brs);
+  cout << "b = " << endl;
+  b.print();
+  cout << endl;
+
+  blas.mul(a, b, c);
+  cout << "c = " << endl;
+  c.print();
+  cout << endl;
 }
