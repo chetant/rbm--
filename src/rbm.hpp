@@ -18,6 +18,10 @@ using boost::filesystem::path;
 #define dumpline(x)
 #define dump2(x, y)
 
+// template for a number type, to overload functions
+template<int n> struct L { enum { value = n }; };
+extern L<0> L0; extern L<1> L1; extern L<2> L2; extern L<3> L3; extern L<4> L4; extern L<5> L5; 
+
 template<int numVisible, int numSamples>
 class BinPVisible
 {
@@ -28,10 +32,15 @@ protected:
   dev_ptr<curandState> randStates;
 public:
   BinPVisible() : randStates(numSamples * numNodes) {}
+
+  double cdLearn(int level)
+  {
+    std::cout << "ERROR: too deep in the dbn!" << std::endl;
+  }
 };
 
-template<int numHidden, int numSamples, class Lower>
-class BinHidden
+template<int N, int numHidden, int numSamples, class Lower>
+class BinHidden : public Lower
 {
 protected:
   enum { numNodes = numHidden };
@@ -44,7 +53,44 @@ protected:
   dev_ptr<curandState> randStates;
 public:
   BinHidden() : randStates(numSamples *numNodes) {}
+
+  double cdLearn(int level)
+  {
+    if(level == N)
+    {
+      std::cout << "I am number:" << N << std::endl;
+    }
+    else
+      Lower::cdLearn(level);
+    return 0.0;
+  }
 };
+
+// finally a way to statically construct a DBN
+template<int nNodes> struct VPBin 
+{ template<int numSamples>             struct Type { typedef BinPVisible<nNodes, numSamples>  In; }; };
+template<int nNodes> struct HBin   
+{ template<int N, int numSamples, typename L> struct Type { typedef BinHidden<N, nNodes, numSamples, L> In; }; };
+
+namespace
+{
+  // template to compute typelist length
+  template<typename... Ts> struct TypeLen {};
+  template<typename T, typename... Ts> struct TypeLen<T, Ts...> { enum { value = 1 + TypeLen<Ts...>::value }; };
+  template<typename T> struct TypeLen<T> { enum { value = 1 }; };
+  template<> struct TypeLen<> { enum { value = 0 }; };
+
+  template<int N, int numSamples, typename... Ls> struct DBN_ {};
+  template<int N, int numSamples, typename H, typename... Hs>
+  struct DBN_<N, numSamples, H, Hs...> 
+  { typedef typename H::template Type<N, numSamples, typename DBN_<N-1, numSamples, Hs...>::Object>::In Object; };
+  template<int numSamples, typename V> 
+  struct DBN_<0, numSamples, V> { typedef typename V::template Type<numSamples>::In Object; };
+}
+
+template<int numSamples, typename... Ls> struct DBN {};
+template<int numSamples, typename H, typename... Hs> 
+struct DBN<numSamples, H, Hs...> { typedef typename DBN_<TypeLen<Hs...>::value, numSamples, H, Hs...>::Object Object; };
 
 // template<int numVisible, int numHidden, 
 // 	 int cdn = 10, int numSamples = 100, 
@@ -239,29 +285,5 @@ public:
 //   }
 // };
 
-// finally a way to statically construct a DBN
-template<int nNodes> struct VPBin 
-{ template<int numSamples>             struct Type { typedef BinPVisible<nNodes, numSamples>  In; }; };
-template<int nNodes> struct HBin   
-{ template<int numSamples, typename L> struct Type { typedef BinHidden<nNodes, numSamples, L> In; }; };
-
-namespace
-{
-  template<typename... Ts> struct TypeLen {};
-  template<typename T, typename... Ts> struct TypeLen<T, Ts...> { enum { value = 1 + TypeLen<Ts...>::value }; };
-  template<typename T> struct TypeLen<T> { enum { value = 1 }; };
-  template<> struct TypeLen<> { enum { value = 0 }; };
-
-  template<int N, int numSamples, typename... Ls> struct DBN_ {};
-  template<int N, int numSamples, typename H, typename... Hs>
-  struct DBN_<N, numSamples, H, Hs...> 
-  { typedef typename H::template Type<numSamples, typename DBN_<N-1, numSamples, Hs...>::Object> Object; };
-  template<int numSamples, typename V> 
-  struct DBN_<0, numSamples, V> { typedef typename V::template Type<numSamples>::In Object; };
-}
-
-template<int numSamples, typename... Ls> struct DBN {};
-template<int numSamples, typename H, typename... Hs> 
-struct DBN<numSamples, H, Hs...> { typedef typename DBN_<TypeLen<Hs...>::value, numSamples, H, Hs...>::Object Object; };
 
 #endif

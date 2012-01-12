@@ -118,9 +118,11 @@ int main(int argc, char * argv[])
 
   DBN< 100, 
        HBin<50>,
+       HBin<50>,
        VPBin<28*28>
      >::Object dbn;
 
+  dbn.cdLearn(2);
 
   // Matrix<3, 2> a;
   // Matrix<2, 4> b;
