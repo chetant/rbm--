@@ -3,6 +3,8 @@
 
 using namespace std;
 
+#define sigmoidd(x) (1 / (1 + __expf(-x)))
+
 template<typename T>
 __global__ 
 void kFillMtx(T * ptr, T val)
@@ -55,6 +57,20 @@ void sampleRand(float * data, curandState * state)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
   data[i] = curand_uniform(&state[i]);
+}
+
+__global__ 
+void kSampleVis(float * v, float * vs, curandState * state, int numSamples)
+{
+  const int i = threadIdx.x;
+  const int j = threadIdx.x * numSamples + threadIdx.y;
+  vs[j] = signbit(curand_uniform(&state[j]) - sigmoidd(v[i]));
+}
+
+void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, int numVisible)
+{
+  dim3 dimBlock(numVisible, numSamples);
+  kSampleVis<<<1, dimBlock>>>(v, vs, randStates, numSamples);
 }
 
 void setupRandStates(curandState * state, int size, int seed)

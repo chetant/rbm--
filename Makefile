@@ -12,7 +12,7 @@ GPERF_INCLUDE_FLAGS=-I/home/saiko/bin/gperf/include
 INCLUDE_FLAGS=$(CUDA_INCLUDE_FLAGS)
 
 CXXFLAGS=-std=c++0x $(INCLUDE_FLAGS)
-NVCCFLAGS=$(INCLUDE_FLAGS)
+NVCCFLAGS=-prec-div=false $(INCLUDE_FLAGS)
 
 GPERF_LDFLAGS=-L/home/saiko/bin/gperf/lib -lprofiler -ltcmalloc
 CUDA_LDFLAGS=-L/home/saiko/bin/cuda/lib -lcurand -lcudart -lcublas

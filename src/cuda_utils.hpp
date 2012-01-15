@@ -12,6 +12,8 @@ using std::cerr;
 using std::endl;
 using std::string;
 
+void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, int numVisible);
+
 void setupRandStates(curandState * state, int size, int seed);
 void fillRand(float * data, int size, curandState * state);
 
@@ -172,7 +174,7 @@ public:
     for(int i = 0; i < numRows; ++i)
     {
       for(int j = 0; j < numCols; ++j)
-	std::cout << hptr[j*numRows + i] << "\t";
+    	std::cout << hptr[j*numRows + i] << "\t";
       std::cout << std::endl;
     }
     delete hptr;
@@ -182,12 +184,12 @@ public:
 };
 
 template<int numRows, typename T = float>
-class RVector : Matrix<numRows, 1, T>
+class RVector : public Matrix<numRows, 1, T>
 {
 };
 
 template<int numCols, typename T = float>
-class CVector : Matrix<1, numCols, T>
+class CVector : public Matrix<1, numCols, T>
 {
 };
 

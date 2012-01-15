@@ -30,13 +30,23 @@ protected:
 
   Matrix<numSamples, numVisible> vs;
   dev_ptr<curandState> randStates;
+
 public:
-  BinPVisible() : randStates(numSamples * numNodes) {}
+  BinPVisible() : randStates(numSamples * numNodes) { setupRandStates(randStates.ptr(), numSamples * numNodes, time(NULL)); }
+
+  void setSample(RVector<numVisible>& v)
+  {
+    vs.zeros();
+    // sample from v
+    sampleVis(v.devPtr(), vs.devPtr(), randStates.ptr(), numSamples, numVisible);
+  }
 
   double cdLearn(int level)
   {
     std::cout << "ERROR: too deep in the dbn!" << std::endl;
   }
+
+  Matrix<numSamples, numVisible>& getVis() { return vs; }
 };
 
 template<int N, int numHidden, int numSamples, class Lower>
@@ -51,6 +61,7 @@ protected:
 
   Matrix<numSamples, numHidden> hs;
   dev_ptr<curandState> randStates;
+
 public:
   BinHidden() : randStates(numSamples *numNodes) {}
 
