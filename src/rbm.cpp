@@ -115,27 +115,29 @@ int main(int argc, char * argv[])
     CUDADevice dev = CUDASystem::getDevice(i);
     printf("Device %d: %s\n\tMP: %d, Max Threads/MP:%d, Compute:%1.1f, WarpSize: %d, Unified Addressing:%c, Map Host Mem:%c\n", i, dev.name().c_str(), dev.multiProcs(), dev.maxThreadsPerMP(), dev.computeCaps(), dev.warpSize(), dev.unifiedAddx()?'Y':'N', dev.canMapHostMem()?'Y':'N');
   }
+  CUDADevice dev = CUDASystem::getDevice(0);
 
   DBN< 5, HBin<50>,HBin<50>,VPBin<4> >::Object dbn;
 
-  dbn.cdLearn(1);
-  
   RVector<4> v;
   v.fill(-1.0);
 
   cout << "V:" << endl;
   v.print();
 
-  Matrix<5, 4> sum;
-  sum.zeros();
-  cout << "Samples:" << endl;
-  for(int i = 0; i < 10000; ++i)
-  {
-    dbn.setSample(v);
-    sum += dbn.getVis();
-  }
-  cout << "Sum:" << endl;
-  sum.print();
+  dbn.cdLearn(1, v, 10, 0.01);
+  
+  // Matrix<5, 4> sum;
+  // sum.zeros();
+  // cout << "Samples:" << endl;
+  // for(int i = 0; i < 10000; ++i)
+  // {
+  //   dbn.setSample(v);
+  //   sum += dbn.getVis();
+  // }
+  // cout << "Sum:" << endl;
+  // sum.print();
+
   // dbn.printVis();
 
   // Matrix<3, 2> a;

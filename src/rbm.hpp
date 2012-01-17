@@ -9,6 +9,7 @@
 using boost::filesystem::path;
 
 #define sigmoid(x) (1 / (1 + exp(-x)))
+#define MAXD(x, y) (((int)x) > ((int)y) ? ((int)x) : ((int)y))
 
 // #define dump(x) {std::cout << #x << std::endl;std::cout << x << std::endl;}
 // #define dumpline(x) {std::cout << #x << x << std::endl;}
@@ -27,9 +28,16 @@ class BinPVisible
 {
 protected:
   enum { numNodes = numVisible };
+  enum { numInputs = numVisible };
+
+  CuBLAS blas;
 
   Matrix<numSamples, numVisible> vs;
   dev_ptr<curandState> randStates;
+
+  inline CuBLAS& getBlas()  { return blas; }
+  inline Matrix<numSamples, numVisible>& getHsFromVs(CuBLAS&) { return vs;}
+  inline Matrix<numSamples, numVisible>& getHs() { return vs; }
 
 public:
   BinPVisible() : randStates(numSamples * numNodes) { setupRandStates(randStates.ptr(), numSamples * numNodes, time(NULL)); }
@@ -39,49 +47,128 @@ public:
     vs.zeros();
     // sample from v
     sampleVis(v.devPtr(), vs.devPtr(), randStates.ptr(), numSamples, numVisible);
+    std::cout << "Vs:" << std::endl;
+    vs.print();
   }
 
-  double cdLearn(int level)
+  double cdLearn(int, RVector<numInputs>&, int, double)
   {
     std::cout << "ERROR: too deep in the dbn!" << std::endl;
   }
 
+  void printVis() { vs.print(); }
   Matrix<numSamples, numVisible>& getVis() { return vs; }
 };
 
-template<int N, int numHidden, int numSamples, class Lower>
+template<int N, int numHidden, int numSamples, class Lower, bool isOuterMost = false>
 class BinHidden : public Lower
 {
 protected:
   enum { numNodes = numHidden };
+  enum { numInputs = Lower::numInputs };
 
   Matrix<Lower::numNodes, numHidden> weights;
-  RVector<Lower::numNodes> visBias;
+  RVector<Lower::numNodes> lowBias;
   RVector<numHidden> hidBias;
 
   Matrix<numSamples, numHidden> hs;
   dev_ptr<curandState> randStates;
 
-public:
-  BinHidden() : randStates(numSamples *numNodes) {}
+  Matrix<Lower::numNodes, numHidden> pcorr;
+  Matrix<Lower::numNodes, numHidden> ncorr;
+  RVector<Lower::numNodes> lowBCorr;
+  RVector<numHidden> hidBCorr;
 
-  double cdLearn(int level)
+  inline CuBLAS& getBlas()
+  { return Lower::getBlas(); }
+
+  template<int i, int j>
+  inline void sample(Matrix<i, j>& m)
+  {
+    sampleHid(m.devPtr(), randStates.ptr(), i, j);
+  }
+
+  inline Matrix<numSamples, numHidden>& 
+  getHsFromLs(Matrix<numSamples, Lower::numNodes>& ls, CuBLAS& blas)
+  {
+    blas.mul(ls, weights, hs);
+    hs += hidBias;
+    sample(hs);
+    return hs;
+  }
+
+  inline Matrix<numSamples, Lower::numNodes>& 
+  getLsFromHs(Matrix<numSamples, Lower::numNodes>& ls, CuBLAS& blas)
+  {
+    blas.mulT(hs, weights, ls);
+    ls += lowBias;
+    sample(ls);
+    return ls;
+  }
+
+  inline Matrix<numSamples, numHidden>& getHsFromVs(CuBLAS& blas)
+  {
+    // before we do anything, we need hs from the lower level
+    Matrix<numSamples, Lower::numNodes>& ls = Lower::getHsFromVs(blas);
+    // get this layer's hs
+    getHsFromLs(ls, blas);
+    return hs;
+  }
+
+  inline Matrix<numSamples, numHidden>& getHs() { return hs; }
+
+  inline void updateWeights(Matrix<Lower::numNodes, numHidden>& pcorr, 
+			    Matrix<Lower::numNodes, numHidden>& ncorr, double epsilon)
+  {
+      pcorr -= ncorr;
+      pcorr *= epsilon;
+      weights += pcorr;
+  }
+
+public:
+  enum { currLevel = N };
+  typedef Lower Next;
+
+  BinHidden() : randStates(numSamples * MAXD(numNodes, Lower::numNodes)) {}
+
+  double cdLearn(int level, RVector<numInputs>& v, int cdn, double epsilon)
   {
     if(level == N)
     {
+      CuBLAS& blas = getBlas();
       std::cout << "I am number:" << N << std::endl;
+      // sample from the v
+      setSample(v);
+      // now sample from vis layer to (level-1) layer
+      getHsFromVs(blas);
+      // get pcorr
+      Matrix<numSamples, Lower::numNodes>& ls = Lower::getHs();
+      blas.mulT(ls, hs, pcorr);
+      // now gibbs sample n times
+      for(int i = 1; i < cdn; ++i)
+      {
+      	// from given hs, get ls
+      	getHsFromLs(ls, blas);
+      	// and go back up
+      	getLsFromHs(ls, blas);
+      }
+      // finall get ncorr
+      blas.mulT(ls, hs, ncorr);
+
+      // update weights and biases
+      updateWeights(pcorr, ncorr, epsilon);
     }
     else
-      Lower::cdLearn(level);
+      Lower::cdLearn(level, v, cdn, epsilon);
     return 0.0;
   }
 };
 
 // finally a way to statically construct a DBN
 template<int nNodes> struct VPBin 
-{ template<int numSamples>             struct Type { typedef BinPVisible<nNodes, numSamples>  In; }; };
+{ template<int numSamples>  struct Type { typedef BinPVisible<nNodes, numSamples>  In; }; };
 template<int nNodes> struct HBin   
-{ template<int N, int numSamples, typename L> struct Type { typedef BinHidden<N, nNodes, numSamples, L> In; }; };
+{ template<bool isFirst, int N, int numSamples, typename L> struct Type { typedef BinHidden<N, nNodes, numSamples, L, isFirst> In; }; };
 
 namespace
 {
@@ -91,210 +178,24 @@ namespace
   template<typename T> struct TypeLen<T> { enum { value = 1 }; };
   template<> struct TypeLen<> { enum { value = 0 }; };
 
-  template<int N, int numSamples, typename... Ls> struct DBN_ {};
+  // helper templates to create a DBN
+  template<bool isFirst, int N, int numSamples, typename... Ls> struct DBN_ {};
   template<int N, int numSamples, typename H, typename... Hs>
-  struct DBN_<N, numSamples, H, Hs...> 
-  { typedef typename H::template Type<N, numSamples, typename DBN_<N-1, numSamples, Hs...>::Object>::In Object; };
+  struct DBN_<true, N, numSamples, H, Hs...> 
+  { typedef typename H::template Type<true, N, numSamples, typename DBN_<false, N-1, numSamples, Hs...>::Object>::In Object; };
+  template<int N, int numSamples, typename H, typename... Hs>
+  struct DBN_<false, N, numSamples, H, Hs...> 
+  { typedef typename H::template Type<false, N, numSamples, typename DBN_<false, N-1, numSamples, Hs...>::Object>::In Object; };
   template<int numSamples, typename V> 
-  struct DBN_<0, numSamples, V> { typedef typename V::template Type<numSamples>::In Object; };
+  struct DBN_<false, 0, numSamples, V> { typedef typename V::template Type<numSamples>::In Object; };
+
+  // helper template to give type of n'th entry in a DBN
+  template<typename D, int i> struct TypeAt { typedef typename TypeAt<typename D::Next, i-1>::Type Type; };
+  template<typename D> struct TypeAt<D, 0> { typedef D Type; };
 }
 
 template<int numSamples, typename... Ls> struct DBN {};
 template<int numSamples, typename H, typename... Hs> 
-struct DBN<numSamples, H, Hs...> { typedef typename DBN_<TypeLen<Hs...>::value, numSamples, H, Hs...>::Object Object; };
-
-// template<int numVisible, int numHidden, 
-// 	 int cdn = 10, int numSamples = 100, 
-// 	 class VisClass = BinPVisible<numVisible, numSamples>, 
-// 	 class HidClass = BinHidden<numHidden, numSamples, VisClass>
-// 	 >
-// class RBM
-// {
-// protected:
-//   double learnRate;
-
-//   // template<int n, int i>
-//   // inline void sample(Matrix<n, i>& res, Matrix<n, i>& ps)
-//   // {
-//   //   res.randu();
-//   //   #pragma omp parallel for
-//   //   for(int j = 0; j < n; ++j)
-//   //     #pragma omp parallel for
-//   //     for(int k = 0; k < i; ++k)
-//   // 	res(j, k) = (res(j, k) < ps(j, k))? 1.0 : 0.0;
-//   // }
-
-//   // template<int n, int i>
-//   // inline void sampleSig(Matrix<n, i>& res, Matrix<n, i>& ps)
-//   // {
-//   //   res.randu();
-//   //   #pragma omp parallel for
-//   //   for(int j = 0; j < n; ++j)
-//   //     #pragma omp parallel for
-//   //     for(int k = 0; k < i; ++k)
-//   // 	res(j, k) = (res(j, k) < sigmoid(ps(j, k)))? 1.0 : 0.0;
-//   // }
-
-//   // template<int n>
-//   // inline void getVPsGivenHs(Matrix<n, numVisible>& ps,  Matrix<n, numHidden>& hs)
-//   // {
-//   //   ps = arma::repmat(visBias, n, 1) + hs * weightsT;
-//   // }
-
-//   // template<int n>
-//   // inline void getHPsGivenVs(Matrix<n, numHidden>& ps,  Matrix<n, numVisible>& vs)
-//   // {
-//   //   ps = arma::repmat(hidBias, n, 1) + vs * weights;
-//   // }
-
-//   // template<int n>
-//   // inline void getCorr(Matrix<numVisible, numHidden>& corrs, Matrix<n, numVisible>& vs, Matrix<n, numHidden>& hs)
-//   // {
-//   //   corrs = vs.t() * hs;
-//   //   // #pragma omp parallel for
-//   //   // for(int i = 0; i < numVisible; ++i)
-//   //   //   #pragma omp parallel for
-//   //   //   for(int j = 0; j < numHidden; ++j)
-//   //   //     #pragma omp parallel for
-//   //   // 	for(int k = 0; k < n; ++k)
-//   //   // 	  corrs(i, j) += vs(k, i) * hs(k, j);
-//   // }
-
-// public:
-//   RBM(double lRate = 0.07, double stdDev = 0.1)
-//   {
-//     // weights.randn();
-//     // weights *= stdDev;
-//     // weightsT = weights.t();
-//     // visBias.zeros();
-//     // hidBias.zeros();
-    
-//     learnRate = lRate;
-//   }
-
-//   // RBM(const path& filename) { load(filename); }
-
-//   // template<int n>
-//   // void trainBatch(Matrix<n, numVisible>& batch, double& e)
-//   // {
-//   //   Matrix<n, numVisible> ovs;
-//   //   Matrix<n, numVisible> err;
-//   //   Matrix<n, numVisible> vs;
-//   //   Matrix<n, numVisible> pvs;
-
-//   //   Matrix<n, numHidden>  hs;
-//   //   Matrix<n, numHidden>  phs;
-
-//   //   Matrix<numVisible, numHidden> posCorr;
-//   //   Vector<numVisible> posVCorr;
-//   //   Vector<numHidden>  posHCorr;
-
-//   //   Matrix<numVisible, numHidden> negCorr;
-//   //   Vector<numVisible> negVCorr;
-//   //   Vector<numHidden>  negHCorr;
-
-//   //   Matrix<numVisible, numHidden> delWt;
-//   //   Matrix<numHidden, numVisible> delWtT;
-
-//   //   double epsilon = learnRate / n;
-
-//   //   dump(epsilon);
-
-//   //   for(int i = 0; i < numSamples; ++i)
-//   //   {
-//   //     sample<n, numVisible>(vs, batch);
-//   //     ovs = vs;
-//   //     dump(vs);
-//   //     getHPsGivenVs<n>(phs, vs);
-//   //     dump(phs);
-//   //     sampleSig<n, numHidden>(hs, phs);
-//   //     dump(hs);
-//   //     getCorr<n>(posCorr, vs, hs);
-//   //     dump(posCorr);
-      
-//   //     for(int j = 0; j < cdn; ++j)
-//   //     {
-//   // 	getVPsGivenHs<n>(pvs, hs);
-//   // 	dump(pvs);
-//   // 	sampleSig<n, numVisible>(vs, pvs);
-//   // 	dump(vs);
-//   // 	getHPsGivenVs<n>(phs, vs);
-//   // 	dump(phs);
-//   // 	sampleSig<n, numHidden>(hs, phs);
-//   // 	dump(hs);
-//   //     }
-//   //     getCorr<n>(negCorr, vs, hs);
-//   //     dump(negCorr);
-
-//   //     delWt = epsilon * (posCorr - negCorr);
-//   //     dump(delWt);
-//   //     delWtT = delWt.t();
-//   //     weights += delWt;
-//   //     weightsT += delWtT;
-//   //     dump(weights);
-
-//   //     err = ovs - vs;
-//   //     dump(ovs);
-//   //     dump(vs);
-//   //     dump(err);
-//   //     e = arma::accu(err % err);
-//   //     dumpline(e);
-//   //   }
-//   // }
-
-//   // template<int n>
-//   // void reconstruct(RVector<numVisible>& newv, RVector<numVisible>& v)
-//   // {
-//   //   Matrix<n, numVisible> vs = repmat(v, n, 1);;
-//   //   Matrix<n, numVisible> pvs;
-//   //   Matrix<n, numHidden>  hs;
-//   //   Matrix<n, numHidden>  phs;
-    
-//   //   getHPsGivenVs<n>(phs, vs);
-//   //   sampleSig<n, numHidden>(hs, phs);
-//   //   getVPsGivenHs<n>(pvs, hs);
-//   //   sampleSig<n, numVisible>(vs, pvs);
-//   //   newv = arma::sum(vs) / n;
-//   // }
-
-//   // bool save(const path& filename)
-//   // {
-//   //   std::ofstream outf(filename.c_str(), std::ios_base::out | std::ios_base::binary);
-//   //   weights.save(outf);
-//   //   visBias.save(outf);
-//   //   hidBias.save(outf);
-
-//   //   outf.write((char *)&cdn, sizeof(int));
-//   //   outf.write((char *)&numSamples, sizeof(int));
-//   //   outf.write((char *)&learnRate, sizeof(double));
-//   //   return true;
-//   // }
-
-//   // bool load(const path& filename)
-//   // {
-//   //   std::ifstream inf(filename.c_str(), std::ios_base::in | std::ios_base::binary);
-//   //   weights.load(inf);
-//   //   visBias.load(inf);
-//   //   hidBias.load(inf);
-
-//   //   inf.read((char *)&cdn, sizeof(int));
-//   //   inf.read((char *)&numSamples, sizeof(int));
-//   //   inf.read((char *)&learnRate, sizeof(double));
-
-//   //   weightsT = weights.t();
-//   // }
-
-//   double getLearnRate() { return learnRate; }
-//   void setLearnRate(double n) { learnRate = n; }
-
-//   // const Matrix<numVisible, numHidden> & getWeights()
-//   // { return weights; }
-
-//   void printConfig()
-//   {
-//     std::cout << "Visible:" << numVisible << ", Hidden:" << numHidden << std::endl;
-//   }
-// };
-
+struct DBN<numSamples, H, Hs...> { typedef typename DBN_<true, TypeLen<Hs...>::value, numSamples, H, Hs...>::Object Object; };
 
 #endif

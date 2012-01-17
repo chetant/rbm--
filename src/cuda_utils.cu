@@ -3,6 +3,8 @@
 
 using namespace std;
 
+CUDADevice CUDASystem::currDevice;
+
 #define sigmoidd(x) (1 / (1 + __expf(-x)))
 
 template<typename T>
@@ -27,6 +29,14 @@ void kAddMtxMtx(T * toptr, const T* fromptr)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
   toptr[i] += fromptr[i];
+}
+
+template<typename T>
+__global__ 
+void kSubMtxMtx(T * toptr, const T* fromptr)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  toptr[i] -= fromptr[i];
 }
 
 template<typename T>
@@ -73,6 +83,19 @@ void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, 
   kSampleVis<<<1, dimBlock>>>(v, vs, randStates, numSamples);
 }
 
+__global__ 
+void kSampleHid(float * hs, curandState * state, int numSamples)
+{
+  const int i = threadIdx.x * numSamples + threadIdx.y;
+  hs[i] = signbit(curand_uniform(&state[i]) - hs[i]);
+}
+
+void sampleHid(float * hs, curandState * randStates, int numSamples, int numHidden)
+{
+  dim3 dimBlock(numHidden, numSamples);
+  kSampleHid<<<1, dimBlock>>>(hs, randStates, numSamples);
+}
+
 void setupRandStates(curandState * state, int size, int seed)
 {
   setupRandSt<<<1, size>>>(state, seed);
@@ -96,6 +119,41 @@ void addMtxf(float * ptr, int size, float val)
 void addMtxMtxf(float * toptr, const float * fromptr, int size)
 {
   kAddMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+}
+
+void subMtxMtxf(float * toptr, const float * fromptr, int size)
+{
+  kSubMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+}
+
+template<typename T>
+__global__ 
+void kSubMtxRVec(T * toptr, const T* fromptr, int numCols)
+{
+  const int i = threadIdx.x * numCols + threadIdx.y;
+  const int j = threadIdx.x;
+  toptr[i] -= fromptr[j];
+}
+
+void subMtxRVecf(float * toptr, const float * fromptr, int numRows, int numCols)
+{
+  dim3 dimBlocks(numRows, numCols);
+  kSubMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numCols);
+}
+
+template<typename T>
+__global__ 
+void kAddMtxRVec(T * toptr, const T* fromptr, int numCols)
+{
+  const int i = threadIdx.x * numCols + threadIdx.y;
+  const int j = threadIdx.x;
+  toptr[i] += fromptr[j];
+}
+
+void addMtxRVecf(float * toptr, const float * fromptr, int numRows, int numCols)
+{
+  dim3 dimBlocks(numRows, numCols);
+  kAddMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numCols);
 }
 
 void gtMtxMtxf(float * toptr, const float * fromptr, int size)
