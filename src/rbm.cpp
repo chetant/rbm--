@@ -109,11 +109,11 @@ int learn()
 int main(int argc, char * argv[])
 {
   int numDev = CUDASystem::getNumDevices();
-  cout << "Number of CUDA devices found:" << numDev << endl;
+  cout << "Total CUDA devices found:" << numDev << endl;
   for(int i = 0; i < numDev; ++i)
   {
     CUDADevice dev = CUDASystem::getDevice(i);
-    printf("Device %d: %s\n\tMP: %d, Max Threads/MP:%d, Compute:%1.1f, WarpSize: %d, Unified Addressing:%c, Map Host Mem:%c\n", i, dev.name().c_str(), dev.multiProcs(), dev.maxThreadsPerMP(), dev.computeCaps(), dev.warpSize(), dev.unifiedAddx()?'Y':'N', dev.canMapHostMem()?'Y':'N');
+    printf("Device %d: %s\n\tMP: %d, Compute:%1.1f\n\tMax Threads/Block: %d\n\tCan Map Host Mem:%c\n", i, dev.name().c_str(), dev.multiProcs(), dev.computeCaps(), dev.maxThreadsPerBlock(), dev.canMapHostMem()?'Y':'N');
   }
   CUDADevice dev = CUDASystem::getDevice(0);
 

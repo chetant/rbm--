@@ -79,6 +79,7 @@ void kSampleVis(float * v, float * vs, curandState * state, int numSamples)
 
 void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, int numVisible)
 {
+  // dim3 dimGrid(numSamples/CUDASystem::currDevice.);
   dim3 dimBlock(numVisible, numSamples);
   kSampleVis<<<1, dimBlock>>>(v, vs, randStates, numSamples);
 }

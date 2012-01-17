@@ -46,13 +46,14 @@ public:
 
   string name() { return string(prop.name); }
 
-  int multiProcs() { if(devId < 0) return -1; else return prop.multiProcessorCount;}
-  int warpSize() { if(devId < 0) return -1; else return prop.warpSize;}
+  int multiProcs() { if(devId < 0) return 0; else return prop.multiProcessorCount;}
+  int warpSize() { if(devId < 0) return 0; else return prop.warpSize;}
   double computeCaps() { if(devId < 0) return -1; else return prop.major + prop.minor/10.0;}
   bool unifiedAddx() { if(devId < 0) return false; else return prop.unifiedAddressing;}
   bool canMapHostMem() { if(devId < 0) return false; else return prop.canMapHostMemory;}
-  int maxThreadsPerMP() { if(devId < 0) return false; else return prop.maxThreadsPerMultiProcessor; } 
-  int maxThreads() { if(devId < 0) return false; else return prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount; }
+  int maxThreadsPerBlock() { if(devId < 0) return 0; else return prop.maxThreadsPerBlock; } 
+  int maxThreadsPerMP() { if(devId < 0) return 0; else return prop.maxThreadsPerMultiProcessor; } 
+  int maxThreads() { if(devId < 0) return 0; else return prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount; }
 };
 
 class CUDASystem
