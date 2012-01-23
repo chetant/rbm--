@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <cmath>
 
 #include <cuda_runtime_api.h>
 #include <curand_kernel.h>
@@ -16,7 +17,8 @@ void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, 
 void sampleHid(float * hs, curandState * randStates, int numSamples, int numHidden);
 
 void setupRandStates(curandState * state, int size, int seed);
-void fillRand(float * data, int size, curandState * state);
+void fillRandU(float * data, int size, curandState * state);
+void fillRandN(float * data, int size, curandState * state, const float mean, const float sd);
 
 void fillMtxf(float * ptr, int size, float val);
 void mulMtxf(float * ptr, int size, float val);
@@ -34,6 +36,7 @@ class CUDADevice
 {
   int devId;
   cudaDeviceProp prop;
+  int maxThreadsPerBlockSide;
 public:
   CUDADevice(int i = 0) : devId(-1)
   {
@@ -42,6 +45,7 @@ public:
       cerr << "ERROR: Cannot query CUDA device properties!!" << endl;
     }
     devId = i;
+    maxThreadsPerBlockSide = (int)floor(sqrt(prop.maxThreadsPerBlock));
   }
 
   string name() { return string(prop.name); }
@@ -52,6 +56,7 @@ public:
   bool unifiedAddx() { if(devId < 0) return false; else return prop.unifiedAddressing;}
   bool canMapHostMem() { if(devId < 0) return false; else return prop.canMapHostMemory;}
   int maxThreadsPerBlock() { if(devId < 0) return 0; else return prop.maxThreadsPerBlock; } 
+  int maxThreadsPerBlockPerSide() { if(devId < 0) return 0; else return maxThreadsPerBlockSide; } 
   int maxThreadsPerMP() { if(devId < 0) return 0; else return prop.maxThreadsPerMultiProcessor; } 
   int maxThreads() { if(devId < 0) return 0; else return prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount; }
 };
@@ -161,6 +166,8 @@ public:
   void zeros() { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), 0.0); }
   void ones() { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), 1.0); }
   void randu(RandState<numRows * numCols>& state) { fillRand(dptr_.ptr(), numRows * numCols, state.ptr()); }
+  void randn(RandState<numRows * numCols>& state, const float mean, const float sd)
+  { fillRandN(dptr_.ptr(), numRows * numCols, state.ptr(), mean, sd); }
 
   // ops with type T
   Matrix<numRows, numCols, T>& operator  =(T val) { fill(val); return *this; }
@@ -188,15 +195,16 @@ public:
     for(int i = 0; i < numRows; ++i)
     {
       for(int j = 0; j < numCols; ++j)
-    	std::cout << hptr[j*numRows + i] << "\t";
+    	std::cout << hptr[j*numRows + i] << " ";
       std::cout << std::endl;
     }
     delete hptr;
   }
 
   T* devPtr() { return dptr_.ptr(); }
+  dev_ptr<T>& devPtrObj() { return dptr_; }
 
-  bool save(std::ostream outf)
+  bool save(std::ostream& outf)
   {
     T * hptr = new T[numRows*numCols];
     dptr_.toHost(hptr);
@@ -211,7 +219,7 @@ public:
     return outf.fail();
   }
 
-  bool load(std::istream inf)
+  bool load(std::istream& inf)
   {
     T * hptr = new T[numRows*numCols];
 

@@ -117,16 +117,16 @@ int main(int argc, char * argv[])
   }
   CUDADevice dev = CUDASystem::getDevice(0);
 
-  DBN< 5, HBin<50>,HBin<50>,VPBin<4> >::Object dbn;
+  DBN< 5, HBin<6>,VPBin<4> >::Object dbn;
 
   RVector<4> v;
   v.fill(-1.0);
 
-  cout << "V:" << endl;
-  v.print();
-
-  dbn.cdLearn(1, v, 10, 0.01);
+  dbn.cdLearn(1, v, 1, 0.01);
   
+  path outPath("test.dbn");
+  dbn.saveDBN(outPath);
+
   // Matrix<5, 4> sum;
   // sum.zeros();
   // cout << "Samples:" << endl;

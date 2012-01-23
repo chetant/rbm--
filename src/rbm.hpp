@@ -1,6 +1,7 @@
 #ifndef _RBM_H_
 #define _RBM_H_
 
+#include <ctime>
 #include <iostream>
 #include <cuda_runtime_api.h>
 #include <boost/filesystem.hpp>
@@ -10,6 +11,7 @@ using boost::filesystem::path;
 
 #define sigmoid(x) (1 / (1 + exp(-x)))
 #define MAXD(x, y) (((int)x) > ((int)y) ? ((int)x) : ((int)y))
+#define MAX3(x, y, z) (MAXD(z, MAXD(x, y)))
 
 // #define dump(x) {std::cout << #x << std::endl;std::cout << x << std::endl;}
 // #define dumpline(x) {std::cout << #x << x << std::endl;}
@@ -44,7 +46,6 @@ public:
 
   void setSample(RVector<numVisible>& v)
   {
-    vs.zeros();
     // sample from v
     sampleVis(v.devPtr(), vs.devPtr(), randStates.ptr(), numSamples, numVisible);
     std::cout << "Vs:" << std::endl;
@@ -55,6 +56,9 @@ public:
   {
     std::cout << "ERROR: too deep in the dbn!" << std::endl;
   }
+
+  bool save(std::ostream& outf) {return true;}
+  bool load(std::istream& inf)  {return true;}
 
   void printVis() { vs.print(); }
   Matrix<numSamples, numVisible>& getVis() { return vs; }
@@ -129,7 +133,15 @@ public:
   enum { currLevel = N };
   typedef Lower Next;
 
-  BinHidden() : randStates(numSamples * MAXD(numNodes, Lower::numNodes)) {}
+  BinHidden() : randStates(MAX3(numSamples * numNodes, numSamples * Lower::numNodes, numNodes * Lower::numNodes))
+  {
+    const int randSize = MAX3(numSamples * numNodes, numSamples * Lower::numNodes, numNodes * Lower::numNodes);
+    int seed = time(NULL);
+    setupRandStates(randStates.ptr(), randSize, seed);
+    fillRandN(weights.devPtr(), Lower::numNodes * numHidden, randStates.ptr(), 0, 0.1);
+    hidBias.zeros();
+    lowBias.zeros();
+  }
 
   double cdLearn(int level, RVector<numInputs>& v, int cdn, double epsilon)
   {
@@ -145,7 +157,7 @@ public:
       Matrix<numSamples, Lower::numNodes>& ls = Lower::getHs();
       blas.mulT(ls, hs, pcorr);
       // now gibbs sample n times
-      for(int i = 1; i < cdn; ++i)
+      for(int i = 0; i < cdn; ++i)
       {
       	// from given hs, get ls
       	getHsFromLs(ls, blas);
@@ -157,10 +169,45 @@ public:
 
       // update weights and biases
       updateWeights(pcorr, ncorr, epsilon);
+
+      return 0.0;
     }
     else
-      Lower::cdLearn(level, v, cdn, epsilon);
-    return 0.0;
+      return Lower::cdLearn(level, v, cdn, epsilon);
+  }
+
+  bool saveDBN(path& outPath)
+  {
+    std::ofstream outf(outPath.c_str(), std::ios_base::out | std::ios_base::binary);
+    save(outf);
+    Lower::save(outf);
+  }
+
+  bool save(std::ostream& outf)
+  {
+    int nrows = Lower::numNodes;
+    int ncols = numHidden;
+    outf.write((const char *)&nrows, sizeof(nrows));
+    outf.write((const char *)&ncols, sizeof(ncols));
+    weights.save(outf);
+    lowBias.save(outf);
+    hidBias.save(outf);
+
+    return outf.fail();
+  }
+
+  bool load(std::istream& inf)
+  {
+    int nrows, ncols;
+    inf.read((char *)&nrows, sizeof(nrows));
+    inf.read((char *)&ncols, sizeof(ncols));
+    if(nrows != Lower::numNodes || ncols != numHidden)
+      return false;
+    weights.load(inf);
+    lowBias.load(inf);
+    hidBias.load(inf);
+
+    return inf.fail();
   }
 };
 

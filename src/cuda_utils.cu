@@ -6,176 +6,235 @@ using namespace std;
 CUDADevice CUDASystem::currDevice;
 
 #define sigmoidd(x) (1 / (1 + __expf(-x)))
+#define split(x) const int maxt = CUDASystem::currDevice.maxThreadsPerBlockPerSide(); \
+                 int oX = (maxt % x || maxt > x) ? 1 : 0; \
+                 dim3 dimGrid(x/maxt + oX); \
+                 dim3 dimBlock(maxt);
+#define splitGrid(x, y) const int maxt = CUDASystem::currDevice.maxThreadsPerBlockPerSide(); \
+                        int oX = (maxt % x || maxt > x) ? 1 : 0; \
+                        int oY = (maxt % y || maxt > y) ? 1 : 0; \
+                        dim3 dimGrid(x/maxt + oX, y/maxt + oY); \
+                        dim3 dimBlock(maxt, maxt);
 
 template<typename T>
 __global__ 
-void kFillMtx(T * ptr, T val)
+void kFillMtx(T * ptr, T val, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  ptr[i] = val;
-}
-
-template<typename T>
-__global__ 
-void kAddMtx(T * ptr, T val)
-{
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  ptr[i] += val;
-}
-
-template<typename T>
-__global__ 
-void kAddMtxMtx(T * toptr, const T* fromptr)
-{
-  const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  toptr[i] += fromptr[i];
+  if(i < size)
+    ptr[i] = val;
 }
 
 template<typename T>
 __global__ 
-void kSubMtxMtx(T * toptr, const T* fromptr)
+void kAddMtx(T * ptr, T val, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  toptr[i] -= fromptr[i];
+  if(i < size)
+    ptr[i] += val;
 }
 
 template<typename T>
 __global__ 
-void kGTMtxMtx(T * toptr, const T* fromptr)
+void kAddMtxMtx(T * toptr, const T* fromptr, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  toptr[i] = toptr[i] > fromptr[i] ? 1 : 0;
+  if(i < size)
+    toptr[i] += fromptr[i];
 }
 
 template<typename T>
 __global__ 
-void kMulMtx(T * ptr, T val)
+void kSubMtxMtx(T * toptr, const T* fromptr, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  ptr[i] *= val;
+  if(i < size)
+    toptr[i] -= fromptr[i];
 }
 
+template<typename T>
 __global__ 
-void setupRandSt(curandState * state, int seed)
+void kGTMtxMtx(T * toptr, const T* fromptr, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  curand_init(seed, i, 0, &state[i]);
+  if(i < size)
+    toptr[i] = toptr[i] > fromptr[i] ? 1 : 0;
 }
 
+template<typename T>
 __global__ 
-void sampleRand(float * data, curandState * state)
+void kMulMtx(T * ptr, T val, const int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  data[i] = curand_uniform(&state[i]);
+  if(i < size)
+    ptr[i] *= val;
 }
 
 __global__ 
-void kSampleVis(float * v, float * vs, curandState * state, int numSamples)
+void setupRandSt(curandState * state, const int seed, const int size)
 {
-  const int i = threadIdx.x;
-  const int j = threadIdx.x * numSamples + threadIdx.y;
-  vs[j] = signbit(curand_uniform(&state[j]) - sigmoidd(v[i]));
-}
-
-void sampleVis(float * v, float * vs, curandState * randStates, int numSamples, int numVisible)
-{
-  // dim3 dimGrid(numSamples/CUDASystem::currDevice.);
-  dim3 dimBlock(numVisible, numSamples);
-  kSampleVis<<<1, dimBlock>>>(v, vs, randStates, numSamples);
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < size)
+    curand_init(seed, i, 0, &state[i]);
 }
 
 __global__ 
-void kSampleHid(float * hs, curandState * state, int numSamples)
+void sampleRandU(float * data, curandState * state, const int size)
 {
-  const int i = threadIdx.x * numSamples + threadIdx.y;
-  hs[i] = signbit(curand_uniform(&state[i]) - hs[i]);
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < size)
+    data[i] = curand_uniform(&state[i]);
 }
 
-void sampleHid(float * hs, curandState * randStates, int numSamples, int numHidden)
+__global__ 
+void sampleRandN(float * data, curandState * state, const int size, const float mean, const float sd)
 {
-  dim3 dimBlock(numHidden, numSamples);
-  kSampleHid<<<1, dimBlock>>>(hs, randStates, numSamples);
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < size)
+    data[i] = curand_normal(&state[i]) * sd + mean;
 }
 
-void setupRandStates(curandState * state, int size, int seed)
+// Sample from visible vector to vs
+__global__ 
+void kSampleVis(float * v, float * vs, curandState * state, const int numSamples, const int numVisible)
 {
-  setupRandSt<<<1, size>>>(state, seed);
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+  // const int j = (blockIdx.x * blockDim.x + threadIdx.x) * numSamples + (blockIdx.y * blockDim.y + threadIdx.y);
+  if(i < numVisible && j < numSamples)
+  {
+    const int k = i*numSamples + j;
+    vs[k] = signbit(curand_uniform(&state[k]) - sigmoidd(v[i]));
+  }
 }
 
-void fillRand(float * data, int size, curandState * state)
+void sampleVis(float * v, float * vs, curandState * randStates, const int numSamples, const int numVisible)
 {
-  sampleRand<<<1, size>>>(data, state);
+  splitGrid(numVisible, numSamples);
+  kSampleVis<<<dimGrid, dimBlock>>>(v, vs, randStates, numSamples, numVisible);
+}
+
+// Sample from phs to hs
+__global__ 
+void kSampleHid(float * hs, curandState * state, const int numSamples, const int numHidden)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+  // const int i = (blockIdx.x * blockDim.x + threadIdx.x) * numSamples + (blockIdx.y * blockDim.y + threadIdx.y);
+  if(i < numHidden && j < numSamples)
+  {
+    const int k = i*numSamples + j;
+    hs[k] = signbit(curand_uniform(&state[k]) - hs[k]);
+  }
+}
+
+void sampleHid(float * hs, curandState * randStates, const int numSamples, const int numHidden)
+{
+  splitGrid(numHidden, numSamples);
+  kSampleHid<<<dimGrid, dimBlock>>>(hs, randStates, numSamples, numHidden);
+}
+
+// setup initial rand states
+void setupRandStates(curandState * state, int size, const int seed)
+{
+  split(size);
+  setupRandSt<<<dimGrid, dimBlock>>>(state, seed, size);
+}
+
+void fillRandU(float * data, int size, curandState * state)
+{
+  split(size);
+  sampleRandU<<<dimGrid, dimBlock>>>(data, state, size);
+}
+
+void fillRandN(float * data, int size, curandState * state, float mean, float sd)
+{
+  split(size);
+  sampleRandN<<<dimGrid, dimBlock>>>(data, state, size, mean, sd);
 }
 
 void fillMtxf(float * ptr, int size, float val)
 {
-  kFillMtx<float> <<<1, size>>> (ptr, val);
+  split(size);
+  kFillMtx<float> <<<dimGrid, dimBlock>>> (ptr, val, size);
 }
 
 void addMtxf(float * ptr, int size, float val)
 {
-  kAddMtx<float> <<<1, size>>> (ptr, val);
+  split(size);
+  kAddMtx<float> <<<dimGrid, dimBlock>>> (ptr, val, size);
 }
 
 void addMtxMtxf(float * toptr, const float * fromptr, int size)
 {
-  kAddMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+  split(size);
+  kAddMtxMtx<float> <<<dimGrid, dimBlock>>> (toptr, fromptr, size);
 }
 
 void subMtxMtxf(float * toptr, const float * fromptr, int size)
 {
-  kSubMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+  split(size);
+  kSubMtxMtx<float> <<<dimGrid, dimBlock>>> (toptr, fromptr, size);
 }
 
 template<typename T>
 __global__ 
-void kSubMtxRVec(T * toptr, const T* fromptr, int numCols)
+void kSubMtxRVec(T * toptr, const T* fromptr, int numRows, int numCols)
 {
-  const int i = threadIdx.x * numCols + threadIdx.y;
-  const int j = threadIdx.x;
-  toptr[i] -= fromptr[j];
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+  if(i < numCols && j < numRows)
+  {
+    const int k = i*numCols + j;
+    toptr[k] -= fromptr[i];
+  }
 }
 
 void subMtxRVecf(float * toptr, const float * fromptr, int numRows, int numCols)
 {
   dim3 dimBlocks(numRows, numCols);
-  kSubMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numCols);
+  kSubMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numRows, numCols);
 }
 
 template<typename T>
 __global__ 
-void kAddMtxRVec(T * toptr, const T* fromptr, int numCols)
+void kAddMtxRVec(T * toptr, const T* fromptr, int numRows, int numCols)
 {
-  const int i = threadIdx.x * numCols + threadIdx.y;
-  const int j = threadIdx.x;
-  toptr[i] += fromptr[j];
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+  if(i < numCols && j < numRows)
+  {
+    const int k = i*numCols + j;
+    toptr[k] += fromptr[i];
+  }
 }
 
 void addMtxRVecf(float * toptr, const float * fromptr, int numRows, int numCols)
 {
   dim3 dimBlocks(numRows, numCols);
-  kAddMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numCols);
+  kAddMtxRVec<float> <<<1, dimBlocks>>> (toptr, fromptr, numRows, numCols);
 }
 
 void gtMtxMtxf(float * toptr, const float * fromptr, int size)
 {
-  kGTMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+  kGTMtxMtx<float> <<<1, size>>> (toptr, fromptr, size);
 }
 
 void mulMtxf(float * ptr, int size, float val)
 {
-  kMulMtx<float> <<<1, size>>> (ptr, val);
+  kMulMtx<float> <<<1, size>>> (ptr, val, size);
 }
 
 template<typename T>
 __global__ 
-void kMulMtxMtx(T * toptr, const T* fromptr)
+void kMulMtxMtx(T * toptr, const T* fromptr, int size)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
-  toptr[i] += fromptr[i];
+  if(i < size)
+    toptr[i] *= fromptr[i];
 }
 
 void mulMtxMtxf(float * toptr, const float * fromptr, int size)
 {
-  kMulMtxMtx<float> <<<1, size>>> (toptr, fromptr);
+  kMulMtxMtx<float> <<<1, size>>> (toptr, fromptr, size);
 }
