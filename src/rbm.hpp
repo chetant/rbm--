@@ -13,13 +13,13 @@ using boost::filesystem::path;
 #define MAXD(x, y) (((int)x) > ((int)y) ? ((int)x) : ((int)y))
 #define MAX3(x, y, z) (MAXD(z, MAXD(x, y)))
 
-// #define dump(x) {std::cout << #x << std::endl;std::cout << x << std::endl;}
-// #define dumpline(x) {std::cout << #x << x << std::endl;}
-// #define dump2(x, y) {std::cout << x << std::endl;std::cout << y << std::endl;}
+#define dump(x) {std::cout << #x << std::endl;std::cout << x << std::endl;}
+#define dumpline(x) {std::cout << #x << x << std::endl;}
+#define dump2(x, y) {std::cout << x << std::endl;std::cout << y << std::endl;}
 
-#define dump(x)
-#define dumpline(x)
-#define dump2(x, y)
+// #define dump(x)
+// #define dumpline(x)
+// #define dump2(x, y)
 
 // template for a number type, to overload functions
 template<int n> struct L { enum { value = n }; };
@@ -124,9 +124,26 @@ protected:
   inline void updateWeights(Matrix<Lower::numNodes, numHidden>& pcorr, 
 			    Matrix<Lower::numNodes, numHidden>& ncorr, double epsilon)
   {
-      pcorr -= ncorr;
-      pcorr *= epsilon;
-      weights += pcorr;
+    // std::cout << "Before ws:" << std::endl;
+    // weights.print();
+
+    // std::cout << "p1:" << std::endl;
+    // pcorr.print();
+    // std::cout << "n1:" << std::endl;
+    // ncorr.print();
+
+    pcorr -= ncorr;
+    // std::cout << "p2:" << std::endl;
+    // pcorr.print();
+
+    pcorr *= epsilon;
+    // std::cout << "p3:" << std::endl;
+    // pcorr.print();
+
+    weights += pcorr;
+
+    // std::cout << "After ws:" << std::endl;
+    // weights.print();
   }
 
 public:
@@ -153,22 +170,37 @@ public:
       setSample(v);
       // now sample from vis layer to (level-1) layer
       getHsFromVs(blas);
+
+      // std::cout << "Lower::getHs():" << std::endl;
+      // Lower::getHs().print();
+
       // get pcorr
       Matrix<numSamples, Lower::numNodes>& ls = Lower::getHs();
+      Matrix<numSamples, Lower::numNodes> pls = ls; // save a copy
       blas.mulT(ls, hs, pcorr);
       // now gibbs sample n times
       for(int i = 0; i < cdn; ++i)
       {
       	// from given hs, get ls
       	getHsFromLs(ls, blas);
+	// std::cout << "cd" << i << " hs:" << std::endl;
+	// hs.print();
       	// and go back up
       	getLsFromHs(ls, blas);
+	// std::cout << "cd" << i << " ls:" << std::endl;
+	// ls.print();
       }
       // finall get ncorr
       blas.mulT(ls, hs, ncorr);
 
       // update weights and biases
       updateWeights(pcorr, ncorr, epsilon);
+
+      // std::cout << "pls:" << std::endl;
+      // pls.print();
+
+      std::cout << "ls:" << std::endl;
+      ls.print();
 
       return 0.0;
     }

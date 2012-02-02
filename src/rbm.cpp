@@ -120,9 +120,13 @@ int main(int argc, char * argv[])
   DBN< 5, HBin<6>,VPBin<4> >::Object dbn;
 
   RVector<4> v;
-  v.fill(-1.0);
+  v.fill(2.0);
 
-  dbn.cdLearn(1, v, 1, 0.01);
+
+  const double epsilon = 0.01;
+  const int cdn = 10;
+  for(int i = 0; i < 100; ++i)
+    dbn.cdLearn(1, v, cdn, epsilon);
   
   path outPath("test.dbn");
   dbn.saveDBN(outPath);

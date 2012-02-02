@@ -105,9 +105,10 @@ public:
   dev_ptr() : ptr_(0), size_(0) {}
   explicit dev_ptr(int size) : size_(0) { set(NULL, size); }
   dev_ptr(T* ptr, int size) : size_(0) { set(ptr, size); }
+  dev_ptr(const dev_ptr<T>& d) : size_(0) { set(d.ptr_, d.sizeInType(), cudaMemcpyDeviceToDevice); }
   ~dev_ptr() { freePtr(); }
 
-  bool set(T* ptr, int size)
+  bool set(T* ptr, int size, cudaMemcpyKind xferType = cudaMemcpyHostToDevice)
   {
     if(size_ != 0)
       freePtr();
@@ -117,7 +118,8 @@ public:
       std::cerr << "Cannot alloc device memory of size" << size_ << std::endl;
       return false;
     }
-    if(ptr != NULL && cudaSuccess != cudaMemcpy(ptr_, ptr, size_, cudaMemcpyHostToDevice))
+    // TODO: check and handle overlapping regions
+    if(ptr != NULL && cudaSuccess != cudaMemcpy(ptr_, ptr, size_, xferType))
     {
       std::cerr << "Cannot copy host mem to device of size" << size_ << std::endl;
       return false;
@@ -125,8 +127,8 @@ public:
     return true;
   }
 
-  int sizeInBytes() { return size_; }
-  int sizeInType() { return size_/sizeof(T); }
+  int sizeInBytes() const { return size_; }
+  int sizeInType() const { return size_/sizeof(T); }
   void setSize(int size) { set(NULL, size); }
 
   void toHost(T* hptr) { cudaMemcpy(hptr, ptr_, size_, cudaMemcpyDeviceToHost); }
@@ -142,24 +144,14 @@ public:
 };
 
 
-template<int numRows, int numCols, typename T>
-class BaseGetter
-{
-public:
-  __device__
-  static T get(const T* ptr)
-  {
-    return ptr[0];
-  }
-};
-
-template<int numRows, int numCols, typename T = float, typename Get = BaseGetter<numRows, numCols, T> >
+template<int numRows, int numCols, typename T = float>
 class Matrix
 {
   dev_ptr<T> dptr_; // device mem ptr
 public:
   Matrix() { dptr_.setSize(numRows * numCols); }
   Matrix(T * ptr) { dptr_.set(ptr, numRows * numCols); }
+  Matrix(const Matrix<numRows, numCols, T>& m) : dptr_(m.dptr_) {}
 
   // fill with specific value
   void fill(T val) { fillMtxf(dptr_.ptr(), dptr_.sizeInType(), val); }
